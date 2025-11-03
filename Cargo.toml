@@ -16,3 +16,5 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 bcrypt = "0.15"
 rand = "0.8"
+# E2E Encryption dependencies
+base64 = "0.22"

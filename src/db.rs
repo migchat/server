@@ -88,5 +88,51 @@ pub async fn init_db() -> Result<DbPool, sqlx::Error> {
         .execute(&pool)
         .await?;
 
+    // E2E Encryption: Create user_keys table
+    sqlx::query(
+        r#"
+        CREATE TABLE IF NOT EXISTS user_keys (
+            user_id INTEGER PRIMARY KEY,
+            identity_key TEXT NOT NULL,
+            signed_prekey TEXT NOT NULL,
+            signed_prekey_signature TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+        "#,
+    )
+    .execute(&pool)
+    .await?;
+
+    // E2E Encryption: Create one_time_prekeys table
+    sqlx::query(
+        r#"
+        CREATE TABLE IF NOT EXISTS one_time_prekeys (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            key_id INTEGER NOT NULL,
+            public_key TEXT NOT NULL,
+            used BOOLEAN DEFAULT FALSE,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+        "#,
+    )
+    .execute(&pool)
+    .await?;
+
+    // Create indexes for key tables
+    sqlx::query("CREATE INDEX IF NOT EXISTS idx_user_keys_user_id ON user_keys(user_id)")
+        .execute(&pool)
+        .await?;
+
+    sqlx::query("CREATE INDEX IF NOT EXISTS idx_one_time_prekeys_user_id ON one_time_prekeys(user_id)")
+        .execute(&pool)
+        .await?;
+
+    sqlx::query("CREATE INDEX IF NOT EXISTS idx_one_time_prekeys_used ON one_time_prekeys(used)")
+        .execute(&pool)
+        .await?;
+
     Ok(Arc::new(pool))
 }
