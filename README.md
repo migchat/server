@@ -9,13 +9,13 @@ A lightweight, real-time chat server built with Rust, using Axum web framework a
 - **Direct Messaging**: Send messages to other users by username
 - **Message Retrieval**: Fetch all messages (sent and received)
 - **Conversation List**: View all conversations with metadata
-- **In-Memory Storage**: Fast SQLite database stored in memory
+- **Persistent Storage**: SQLite database with file-based persistence
 
 ## Tech Stack
 
 - **Rust** - Systems programming language
 - **Axum** - Web application framework
-- **SQLite** - In-memory database via sqlx
+- **SQLite** - Persistent file-based database via sqlx
 - **Tokio** - Async runtime
 - **Docker** - Containerization for easy deployment
 
@@ -359,10 +359,11 @@ server {
 
 ## Security Notes
 
-- **In-Memory Database**: All data is lost when the server restarts. Not suitable for production use without modifications.
+- **Database**: Data persists across restarts using a file-based SQLite database mounted on a Fly.io volume.
 - **Password Storage**: Passwords are hashed using bcrypt with default cost factor.
 - **CORS**: Currently allows all origins. Restrict this in production.
 - **HTTPS**: Always use HTTPS in production. Consider using Let's Encrypt with nginx.
+- **Backups**: For production use, implement regular backups of the SQLite database file.
 
 ## Architecture
 
@@ -381,7 +382,7 @@ server {
 └──────┬──────────────────────┘
        │
 ┌──────▼──────────────────────┐
-│   SQLite (In-Memory)        │
+│   SQLite (Persistent)       │
 │   - users                   │
 │   - sessions                │
 │   - messages                │

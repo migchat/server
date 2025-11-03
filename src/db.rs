@@ -4,9 +4,23 @@ use std::sync::Arc;
 pub type DbPool = Arc<SqlitePool>;
 
 pub async fn init_db() -> Result<DbPool, sqlx::Error> {
+    // Use file-based SQLite for persistence across restarts
+    // Create data directory if it doesn't exist
+    std::fs::create_dir_all("/data").unwrap_or_else(|_| {
+        // If /data is not writable (local dev), use current directory
+        std::fs::create_dir_all("./data").ok();
+    });
+
+    // Try /data first (for production), fall back to ./data (for local dev)
+    let database_url = if std::path::Path::new("/data").exists() {
+        "sqlite:///data/migchat.db"
+    } else {
+        "sqlite://./data/migchat.db"
+    };
+
     let pool = SqlitePoolOptions::new()
         .max_connections(5)
-        .connect("sqlite::memory:")
+        .connect(database_url)
         .await?;
 
     // Create tables

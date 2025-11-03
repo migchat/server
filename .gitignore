@@ -3,6 +3,12 @@
 **/*.rs.bk
 *.pdb
 
+# Database
+/data/
+*.db
+*.db-shm
+*.db-wal
+
 # IDE
 .vscode/
 .idea/
