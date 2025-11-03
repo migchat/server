@@ -72,6 +72,13 @@ async fn main() {
                 auth::auth_middleware,
             )),
         )
+        .route(
+            "/api/messages/mark-read",
+            post(handlers::mark_messages_read).route_layer(middleware::from_fn_with_state(
+                pool.clone(),
+                auth::auth_middleware,
+            )),
+        )
         .layer(cors)
         .with_state(pool);
 

@@ -246,7 +246,7 @@ pub async fn get_conversations(
             END as other_username,
             m.content as last_message,
             m.created_at as last_message_time,
-            COUNT(CASE WHEN m.to_user_id = ? AND m.from_user_id != ? THEN 1 END) as unread_count
+            COUNT(CASE WHEN m.to_user_id = ? AND m.from_user_id != ? AND m.read_at IS NULL THEN 1 END) as unread_count
         FROM messages m
         JOIN users from_user ON m.from_user_id = from_user.id
         JOIN users to_user ON m.to_user_id = to_user.id
@@ -474,5 +474,71 @@ pub async fn get_filtered_messages(
             .collect();
 
         Ok(Json(messages))
+    }
+}
+
+pub async fn mark_messages_read(
+    State(pool): State<DbPool>,
+    Extension(user_id): Extension<i64>,
+    axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<ErrorResponse>)> {
+    let with_user = params.get("with_user");
+
+    if let Some(username) = with_user {
+        // Get the other user's ID
+        let other_user = sqlx::query("SELECT id FROM users WHERE username = ?")
+            .bind(username)
+            .fetch_optional(pool.as_ref())
+            .await
+            .map_err(|e| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(ErrorResponse {
+                        error: format!("Database error: {}", e),
+                    }),
+                )
+            })?;
+
+        let other_user_id: i64 = match other_user {
+            Some(row) => row.get("id"),
+            None => {
+                return Err((
+                    StatusCode::NOT_FOUND,
+                    Json(ErrorResponse {
+                        error: "User not found".to_string(),
+                    }),
+                ))
+            }
+        };
+
+        // Mark all messages from other_user to current user as read
+        let read_at = Utc::now();
+        let result = sqlx::query(
+            "UPDATE messages SET read_at = ? WHERE from_user_id = ? AND to_user_id = ? AND read_at IS NULL"
+        )
+        .bind(read_at.to_rfc3339())
+        .bind(other_user_id)
+        .bind(user_id)
+        .execute(pool.as_ref())
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse {
+                    error: format!("Failed to mark messages as read: {}", e),
+                }),
+            )
+        })?;
+
+        Ok(Json(serde_json::json!({
+            "marked_read": result.rows_affected()
+        })))
+    } else {
+        Err((
+            StatusCode::BAD_REQUEST,
+            Json(ErrorResponse {
+                error: "with_user parameter is required".to_string(),
+            }),
+        ))
     }
 }
