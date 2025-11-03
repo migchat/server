@@ -1,32 +1,23 @@
-# fly.toml app configuration file generated for migchat-server
+# fly.toml app configuration file generated for server-1ce-la on 2025-11-03T04:47:27Z
 #
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
 
-app = "migchat-server"
-primary_region = "sea"
+app = 'server-1ce-la'
+primary_region = 'sjc'
 
 [build]
 
 [http_service]
   internal_port = 3000
   force_https = true
-  auto_stop_machines = "stop"
+  auto_stop_machines = 'stop'
   auto_start_machines = true
   min_machines_running = 0
-  processes = ["app"]
-
-  [[http_service.checks]]
-    grace_period = "10s"
-    interval = "30s"
-    method = "GET"
-    timeout = "5s"
-    path = "/health"
-
-[env]
-  PORT = "3000"
-  RUST_LOG = "migchat_server=info,tower_http=info"
+  processes = ['app']
 
 [[vm]]
-  memory = "256mb"
-  cpu_kind = "shared"
+  memory = '256mb'
+  cpu_kind = 'shared'
   cpus = 1
+  memory_mb = 256
