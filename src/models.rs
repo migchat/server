@@ -25,6 +25,7 @@ pub struct Message {
     pub to_user_id: i64,
     pub content: String,
     pub created_at: DateTime<Utc>,
+    pub read_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

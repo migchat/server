@@ -60,6 +60,7 @@ pub async fn init_db() -> Result<DbPool, sqlx::Error> {
             to_user_id INTEGER NOT NULL,
             content TEXT NOT NULL,
             created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            read_at TEXT,
             FOREIGN KEY (from_user_id) REFERENCES users(id),
             FOREIGN KEY (to_user_id) REFERENCES users(id)
         )
@@ -67,6 +68,12 @@ pub async fn init_db() -> Result<DbPool, sqlx::Error> {
     )
     .execute(&pool)
     .await?;
+
+    // Add read_at column to existing tables (migration for existing databases)
+    sqlx::query("ALTER TABLE messages ADD COLUMN read_at TEXT")
+        .execute(&pool)
+        .await
+        .ok(); // Ignore error if column already exists
 
     // Create indexes for better query performance
     sqlx::query("CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token)")
