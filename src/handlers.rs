@@ -674,7 +674,7 @@ pub async fn get_keys(
     };
 
     // Get user keys
-    let keys = sqlx::query_as::<_, UserKey>("SELECT * FROM user_keys WHERE user_id = ?")
+    let keys_row = sqlx::query("SELECT user_id, identity_key, signed_prekey, signed_prekey_signature, created_at FROM user_keys WHERE user_id = ?")
         .bind(user_id)
         .fetch_optional(pool.as_ref())
         .await
@@ -687,8 +687,14 @@ pub async fn get_keys(
             )
         })?;
 
-    let keys = match keys {
-        Some(k) => k,
+    let keys = match keys_row {
+        Some(row) => UserKey {
+            user_id: row.get("user_id"),
+            identity_key: row.get("identity_key"),
+            signed_prekey: row.get("signed_prekey"),
+            signed_prekey_signature: row.get("signed_prekey_signature"),
+            created_at: row.get("created_at"),
+        },
         None => {
             return Err((
                 StatusCode::NOT_FOUND,
@@ -700,8 +706,8 @@ pub async fn get_keys(
     };
 
     // Get unused one-time prekeys (limit to 10)
-    let prekeys = sqlx::query_as::<_, OneTimePreKey>(
-        "SELECT * FROM one_time_prekeys WHERE user_id = ? AND used = ? LIMIT 10",
+    let prekeys_rows = sqlx::query(
+        "SELECT id, user_id, key_id, public_key, used, created_at FROM one_time_prekeys WHERE user_id = ? AND used = ? LIMIT 10",
     )
     .bind(user_id)
     .bind(false)
@@ -716,7 +722,10 @@ pub async fn get_keys(
         )
     })?;
 
-    let one_time_prekeys: Vec<String> = prekeys.iter().map(|pk| pk.public_key.clone()).collect();
+    let one_time_prekeys: Vec<String> = prekeys_rows
+        .iter()
+        .map(|row| row.get::<String, _>("public_key"))
+        .collect();
 
     Ok(Json(GetKeysResponse {
         key_bundle: KeyBundle {
