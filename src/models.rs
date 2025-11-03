@@ -73,3 +73,14 @@ pub struct ConversationResponse {
 pub struct ErrorResponse {
     pub error: String,
 }
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UpdateUsernameRequest {
+    pub new_username: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UpdateUsernameResponse {
+    pub username: String,
+    pub updated_at: DateTime<Utc>,
+}

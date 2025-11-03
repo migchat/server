@@ -38,6 +38,13 @@ async fn main() {
         .route("/health", get(handlers::health_check))
         .route("/api/account/create", post(handlers::create_account))
         .route(
+            "/api/account/update-username",
+            post(handlers::update_username).route_layer(middleware::from_fn_with_state(
+                pool.clone(),
+                auth::auth_middleware,
+            )),
+        )
+        .route(
             "/api/messages/send",
             post(handlers::send_message).route_layer(middleware::from_fn_with_state(
                 pool.clone(),
@@ -47,6 +54,13 @@ async fn main() {
         .route(
             "/api/messages",
             get(handlers::get_messages).route_layer(middleware::from_fn_with_state(
+                pool.clone(),
+                auth::auth_middleware,
+            )),
+        )
+        .route(
+            "/api/messages/filtered",
+            get(handlers::get_filtered_messages).route_layer(middleware::from_fn_with_state(
                 pool.clone(),
                 auth::auth_middleware,
             )),
