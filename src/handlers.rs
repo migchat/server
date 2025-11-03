@@ -286,3 +286,193 @@ pub async fn get_conversations(
 
     Ok(Json(conversations))
 }
+
+pub async fn update_username(
+    State(pool): State<DbPool>,
+    Extension(user_id): Extension<i64>,
+    Json(payload): Json<UpdateUsernameRequest>,
+) -> Result<Json<UpdateUsernameResponse>, (StatusCode, Json<ErrorResponse>)> {
+    // Validate username
+    if payload.new_username.is_empty() {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(ErrorResponse {
+                error: "Username cannot be empty".to_string(),
+            }),
+        ));
+    }
+
+    // Check if username already exists (for a different user)
+    let existing_user = sqlx::query("SELECT id FROM users WHERE username = ? AND id != ?")
+        .bind(&payload.new_username)
+        .bind(user_id)
+        .fetch_optional(pool.as_ref())
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse {
+                    error: format!("Database error: {}", e),
+                }),
+            )
+        })?;
+
+    if existing_user.is_some() {
+        return Err((
+            StatusCode::CONFLICT,
+            Json(ErrorResponse {
+                error: "Username already exists".to_string(),
+            }),
+        ));
+    }
+
+    // Update the username
+    let updated_at = Utc::now();
+    sqlx::query("UPDATE users SET username = ? WHERE id = ?")
+        .bind(&payload.new_username)
+        .bind(user_id)
+        .execute(pool.as_ref())
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse {
+                    error: format!("Failed to update username: {}", e),
+                }),
+            )
+        })?;
+
+    Ok(Json(UpdateUsernameResponse {
+        username: payload.new_username,
+        updated_at,
+    }))
+}
+
+pub async fn get_filtered_messages(
+    State(pool): State<DbPool>,
+    Extension(user_id): Extension<i64>,
+    axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
+) -> Result<Json<Vec<MessageResponse>>, (StatusCode, Json<ErrorResponse>)> {
+    let with_user = params.get("with_user");
+
+    if let Some(username) = with_user {
+        // Get the other user's ID
+        let other_user = sqlx::query("SELECT id FROM users WHERE username = ?")
+            .bind(username)
+            .fetch_optional(pool.as_ref())
+            .await
+            .map_err(|e| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(ErrorResponse {
+                        error: format!("Database error: {}", e),
+                    }),
+                )
+            })?;
+
+        let other_user_id: i64 = match other_user {
+            Some(row) => row.get("id"),
+            None => {
+                return Err((
+                    StatusCode::NOT_FOUND,
+                    Json(ErrorResponse {
+                        error: "User not found".to_string(),
+                    }),
+                ))
+            }
+        };
+
+        // Get messages between the two users
+        let rows = sqlx::query(
+            r#"
+            SELECT
+                m.id,
+                m.content,
+                m.created_at,
+                from_user.username as from_username,
+                to_user.username as to_username
+            FROM messages m
+            JOIN users from_user ON m.from_user_id = from_user.id
+            JOIN users to_user ON m.to_user_id = to_user.id
+            WHERE (m.from_user_id = ? AND m.to_user_id = ?)
+               OR (m.from_user_id = ? AND m.to_user_id = ?)
+            ORDER BY m.created_at DESC
+            "#,
+        )
+        .bind(user_id)
+        .bind(other_user_id)
+        .bind(other_user_id)
+        .bind(user_id)
+        .fetch_all(pool.as_ref())
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse {
+                    error: format!("Database error: {}", e),
+                }),
+            )
+        })?;
+
+        let messages: Vec<MessageResponse> = rows
+            .iter()
+            .map(|row| {
+                let created_at_str: String = row.get("created_at");
+                MessageResponse {
+                    id: row.get("id"),
+                    from_username: row.get("from_username"),
+                    to_username: row.get("to_username"),
+                    content: row.get("content"),
+                    created_at: created_at_str.parse().unwrap_or(Utc::now()),
+                }
+            })
+            .collect();
+
+        Ok(Json(messages))
+    } else {
+        // No filter, return all messages (same as get_messages)
+        let rows = sqlx::query(
+            r#"
+            SELECT
+                m.id,
+                m.content,
+                m.created_at,
+                from_user.username as from_username,
+                to_user.username as to_username
+            FROM messages m
+            JOIN users from_user ON m.from_user_id = from_user.id
+            JOIN users to_user ON m.to_user_id = to_user.id
+            WHERE m.to_user_id = ? OR m.from_user_id = ?
+            ORDER BY m.created_at DESC
+            "#,
+        )
+        .bind(user_id)
+        .bind(user_id)
+        .fetch_all(pool.as_ref())
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse {
+                    error: format!("Database error: {}", e),
+                }),
+            )
+        })?;
+
+        let messages: Vec<MessageResponse> = rows
+            .iter()
+            .map(|row| {
+                let created_at_str: String = row.get("created_at");
+                MessageResponse {
+                    id: row.get("id"),
+                    from_username: row.get("from_username"),
+                    to_username: row.get("to_username"),
+                    content: row.get("content"),
+                    created_at: created_at_str.parse().unwrap_or(Utc::now()),
+                }
+            })
+            .collect();
+
+        Ok(Json(messages))
+    }
+}
