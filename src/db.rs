@@ -7,12 +7,12 @@ pub async fn init_db() -> Result<DbPool, sqlx::Error> {
     // Use file-based SQLite for persistence across restarts
     // Determine database path based on environment
     let database_url = if std::path::Path::new("/data").exists() {
-        // Production: use /data mounted volume
-        "sqlite:/data/migchat.db"
+        // Production: use /data mounted volume with create_if_missing option
+        "sqlite:/data/migchat.db?mode=rwc"
     } else {
         // Local dev: use ./data directory
         std::fs::create_dir_all("./data").ok();
-        "sqlite:./data/migchat.db"
+        "sqlite:./data/migchat.db?mode=rwc"
     };
 
     eprintln!("Connecting to database: {}", database_url);
