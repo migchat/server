@@ -214,6 +214,40 @@ The `fly.toml` file contains your app configuration:
 - **Auto-scaling**: Stops when inactive, starts on request
 - **Health checks**: Monitors `/health` endpoint
 
+#### Continuous Deployment with GitHub Actions
+
+This repository includes a GitHub Actions workflow that automatically deploys to Fly.io whenever you push to the `main` branch.
+
+**Setup Instructions:**
+
+1. **Get your Fly.io API Token**:
+```bash
+fly auth token
+```
+
+2. **Add the token to GitHub Secrets**:
+   - Go to your GitHub repository
+   - Navigate to **Settings** → **Secrets and variables** → **Actions**
+   - Click **New repository secret**
+   - Name: `FLY_API_TOKEN`
+   - Value: Paste your Fly.io token
+   - Click **Add secret**
+
+3. **Initial Deployment**:
+Before GitHub Actions can deploy, you need to create the app on Fly.io once:
+```bash
+fly launch --no-deploy
+```
+
+4. **Automatic Deployments**:
+Now every push to `main` will automatically deploy to Fly.io! Check the **Actions** tab in your GitHub repository to see deployment status.
+
+**Workflow Features:**
+- Triggers on every push to `main`
+- Prevents concurrent deployments
+- Uses remote-only builds (builds on Fly.io's infrastructure)
+- Shows deployment status in GitHub
+
 ### Option 2: Docker Deployment
 
 #### Build and Run with Docker
