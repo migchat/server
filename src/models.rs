@@ -85,3 +85,46 @@ pub struct UpdateUsernameResponse {
     pub username: String,
     pub updated_at: DateTime<Utc>,
 }
+
+// E2E Encryption models
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct KeyBundle {
+    pub identity_key: String,
+    pub signed_prekey: String,
+    pub signed_prekey_signature: String,
+    pub one_time_prekeys: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UploadKeysRequest {
+    pub key_bundle: KeyBundle,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UploadKeysResponse {
+    pub success: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct GetKeysResponse {
+    pub key_bundle: KeyBundle,
+}
+
+#[derive(Debug, Serialize, Deserialize, FromRow)]
+pub struct UserKey {
+    pub user_id: i64,
+    pub identity_key: String,
+    pub signed_prekey: String,
+    pub signed_prekey_signature: String,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Serialize, Deserialize, FromRow)]
+pub struct OneTimePreKey {
+    pub id: i64,
+    pub user_id: i64,
+    pub key_id: i64,
+    pub public_key: String,
+    pub used: bool,
+    pub created_at: DateTime<Utc>,
+}

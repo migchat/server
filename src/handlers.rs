@@ -542,3 +542,188 @@ pub async fn mark_messages_read(
         ))
     }
 }
+
+// E2E Encryption endpoints
+pub async fn upload_keys(
+    State(pool): State<DbPool>,
+    Extension(user_id): Extension<i64>,
+    Json(payload): Json<UploadKeysRequest>,
+) -> Result<Json<UploadKeysResponse>, (StatusCode, Json<ErrorResponse>)> {
+    // Check if user already has keys
+    let existing_keys = sqlx::query("SELECT user_id FROM user_keys WHERE user_id = ?")
+        .bind(user_id)
+        .fetch_optional(pool.as_ref())
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse {
+                    error: format!("Database error: {}", e),
+                }),
+            )
+        })?;
+
+    if existing_keys.is_some() {
+        // Update existing keys
+        sqlx::query(
+            "UPDATE user_keys SET identity_key = ?, signed_prekey = ?, signed_prekey_signature = ? WHERE user_id = ?",
+        )
+        .bind(&payload.key_bundle.identity_key)
+        .bind(&payload.key_bundle.signed_prekey)
+        .bind(&payload.key_bundle.signed_prekey_signature)
+        .bind(user_id)
+        .execute(pool.as_ref())
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse {
+                    error: format!("Failed to update keys: {}", e),
+                }),
+            )
+        })?;
+
+        // Delete old one-time prekeys
+        sqlx::query("DELETE FROM one_time_prekeys WHERE user_id = ?")
+            .bind(user_id)
+            .execute(pool.as_ref())
+            .await
+            .map_err(|e| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(ErrorResponse {
+                        error: format!("Failed to delete old prekeys: {}", e),
+                    }),
+                )
+            })?;
+    } else {
+        // Insert new keys
+        sqlx::query(
+            "INSERT INTO user_keys (user_id, identity_key, signed_prekey, signed_prekey_signature, created_at) VALUES (?, ?, ?, ?, ?)",
+        )
+        .bind(user_id)
+        .bind(&payload.key_bundle.identity_key)
+        .bind(&payload.key_bundle.signed_prekey)
+        .bind(&payload.key_bundle.signed_prekey_signature)
+        .bind(Utc::now().to_rfc3339())
+        .execute(pool.as_ref())
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse {
+                    error: format!("Failed to insert keys: {}", e),
+                }),
+            )
+        })?;
+    }
+
+    // Insert one-time prekeys
+    for (i, prekey) in payload.key_bundle.one_time_prekeys.iter().enumerate() {
+        sqlx::query(
+            "INSERT INTO one_time_prekeys (user_id, key_id, public_key, used, created_at) VALUES (?, ?, ?, ?, ?)",
+        )
+        .bind(user_id)
+        .bind(i as i64)
+        .bind(prekey)
+        .bind(false)
+        .bind(Utc::now().to_rfc3339())
+        .execute(pool.as_ref())
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse {
+                    error: format!("Failed to insert one-time prekey: {}", e),
+                }),
+            )
+        })?;
+    }
+
+    Ok(Json(UploadKeysResponse { success: true }))
+}
+
+pub async fn get_keys(
+    State(pool): State<DbPool>,
+    axum::extract::Path(username): axum::extract::Path<String>,
+) -> Result<Json<GetKeysResponse>, (StatusCode, Json<ErrorResponse>)> {
+    // Get user ID from username
+    let user = sqlx::query("SELECT id FROM users WHERE username = ?")
+        .bind(&username)
+        .fetch_optional(pool.as_ref())
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse {
+                    error: format!("Database error: {}", e),
+                }),
+            )
+        })?;
+
+    let user_id: i64 = match user {
+        Some(row) => row.get("id"),
+        None => {
+            return Err((
+                StatusCode::NOT_FOUND,
+                Json(ErrorResponse {
+                    error: "User not found".to_string(),
+                }),
+            ))
+        }
+    };
+
+    // Get user keys
+    let keys = sqlx::query_as::<_, UserKey>("SELECT * FROM user_keys WHERE user_id = ?")
+        .bind(user_id)
+        .fetch_optional(pool.as_ref())
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse {
+                    error: format!("Database error: {}", e),
+                }),
+            )
+        })?;
+
+    let keys = match keys {
+        Some(k) => k,
+        None => {
+            return Err((
+                StatusCode::NOT_FOUND,
+                Json(ErrorResponse {
+                    error: "Keys not found for this user".to_string(),
+                }),
+            ))
+        }
+    };
+
+    // Get unused one-time prekeys (limit to 10)
+    let prekeys = sqlx::query_as::<_, OneTimePreKey>(
+        "SELECT * FROM one_time_prekeys WHERE user_id = ? AND used = ? LIMIT 10",
+    )
+    .bind(user_id)
+    .bind(false)
+    .fetch_all(pool.as_ref())
+    .await
+    .map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse {
+                error: format!("Database error: {}", e),
+            }),
+        )
+    })?;
+
+    let one_time_prekeys: Vec<String> = prekeys.iter().map(|pk| pk.public_key.clone()).collect();
+
+    Ok(Json(GetKeysResponse {
+        key_bundle: KeyBundle {
+            identity_key: keys.identity_key,
+            signed_prekey: keys.signed_prekey,
+            signed_prekey_signature: keys.signed_prekey_signature,
+            one_time_prekeys,
+        },
+    }))
+}

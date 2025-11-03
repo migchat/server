@@ -79,6 +79,15 @@ async fn main() {
                 auth::auth_middleware,
             )),
         )
+        // E2E Encryption routes
+        .route(
+            "/api/keys/upload",
+            post(handlers::upload_keys).route_layer(middleware::from_fn_with_state(
+                pool.clone(),
+                auth::auth_middleware,
+            )),
+        )
+        .route("/api/keys/:username", get(handlers::get_keys))
         .layer(cors)
         .with_state(pool);
 
