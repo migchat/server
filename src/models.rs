@@ -110,21 +110,21 @@ pub struct GetKeysResponse {
     pub key_bundle: KeyBundle,
 }
 
-#[derive(Debug, Serialize, Deserialize, FromRow)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct UserKey {
     pub user_id: i64,
     pub identity_key: String,
     pub signed_prekey: String,
     pub signed_prekey_signature: String,
-    pub created_at: DateTime<Utc>,
+    pub created_at: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, FromRow)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct OneTimePreKey {
     pub id: i64,
     pub user_id: i64,
     pub key_id: i64,
     pub public_key: String,
     pub used: bool,
-    pub created_at: DateTime<Utc>,
+    pub created_at: String,
 }
