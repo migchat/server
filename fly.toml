@@ -1,0 +1,32 @@
+# fly.toml app configuration file generated for migchat-server
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+
+app = "migchat-server"
+primary_region = "sea"
+
+[build]
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ["app"]
+
+  [[http_service.checks]]
+    grace_period = "10s"
+    interval = "30s"
+    method = "GET"
+    timeout = "5s"
+    path = "/health"
+
+[env]
+  PORT = "3000"
+  RUST_LOG = "migchat_server=info,tower_http=info"
+
+[[vm]]
+  memory = "256mb"
+  cpu_kind = "shared"
+  cpus = 1

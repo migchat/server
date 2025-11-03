@@ -144,16 +144,86 @@ The server will start on `http://localhost:3000`
 - `PORT` - Server port (default: 3000)
 - `RUST_LOG` - Logging level (default: `migchat_server=debug,tower_http=debug`)
 
-## Docker Deployment
+## Deployment Options
 
-### Build and Run with Docker
+### Option 1: Deploy to Fly.io (Recommended - Free Tier)
+
+Fly.io offers a generous free tier perfect for this application. Deploy in minutes:
+
+#### Prerequisites
+Install the Fly CLI:
+```bash
+# macOS/Linux
+curl -L https://fly.io/install.sh | sh
+
+# Windows (PowerShell)
+pwsh -Command "iwr https://fly.io/install.ps1 -useb | iex"
+```
+
+#### Deploy Steps
+
+1. **Login to Fly.io**:
+```bash
+fly auth login
+```
+
+2. **Launch your app** (from the server directory):
+```bash
+cd server
+fly launch
+```
+When prompted:
+- Choose an app name (or accept the generated one)
+- Select a region (choose closest to you)
+- Accept the default settings
+
+3. **Deploy**:
+```bash
+fly deploy
+```
+
+Your app will be live at `https://your-app-name.fly.dev` in a few minutes!
+
+#### Useful Fly.io Commands
+
+```bash
+# View logs
+fly logs
+
+# Open app in browser
+fly open
+
+# Check app status
+fly status
+
+# SSH into the app
+fly ssh console
+
+# Scale the app (free tier: max 3 VMs with 256MB each)
+fly scale count 1
+
+# View app info
+fly info
+```
+
+#### Configuration
+
+The `fly.toml` file contains your app configuration:
+- **Region**: `sea` (Seattle) - change to your preferred region
+- **Memory**: 256MB (free tier)
+- **Auto-scaling**: Stops when inactive, starts on request
+- **Health checks**: Monitors `/health` endpoint
+
+### Option 2: Docker Deployment
+
+#### Build and Run with Docker
 
 ```bash
 docker build -t migchat-server .
 docker run -p 3000:3000 migchat-server
 ```
 
-### Using Docker Compose
+#### Using Docker Compose
 
 ```bash
 docker-compose up -d
