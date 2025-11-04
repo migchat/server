@@ -727,6 +727,17 @@ pub async fn get_keys(
         .map(|row| row.get::<String, _>("public_key"))
         .collect();
 
+    // Mark the first one-time prekey as used (X3DH protocol requirement)
+    if !prekeys_rows.is_empty() {
+        let first_prekey_id: i64 = prekeys_rows[0].get("id");
+        let _ = sqlx::query("UPDATE one_time_prekeys SET used = ? WHERE id = ?")
+            .bind(true)
+            .bind(first_prekey_id)
+            .execute(pool.as_ref())
+            .await;
+        // Note: We don't fail if this update fails, just log it
+    }
+
     Ok(Json(GetKeysResponse {
         key_bundle: KeyBundle {
             identity_key: keys.identity_key,
